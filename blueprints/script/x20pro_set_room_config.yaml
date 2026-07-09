@@ -1,0 +1,72 @@
+blueprint:
+  name: X20 Pro — Set per-room cleaning config (no clean)
+  description: >-
+    Store per-room cleaning settings (fan/water/mode/passes) on a Xiaomi Robot
+    Vacuum X20 Pro (xiaomi.vacuum.d102gl) via set-room-clean-configs (siid 2,
+    aiid 13). Never moves the robot; accepted even in deep sleep. Standalone
+    YAML alternative to the xiaomi_x20pro custom integration.
+  domain: script
+  source_url: https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/blob/main/blueprints/script/x20pro_set_room_config.yaml
+  input:
+    vacuum_entity:
+      name: Vacuum entity
+      selector:
+        entity:
+          domain: vacuum
+
+fields:
+  room_id:
+    name: Room ID
+    description: Map room ID (see the vacuum.room_information entity attribute).
+    required: true
+    selector:
+      number:
+        min: 1
+        max: 99
+  fan_level:
+    name: Fan level
+    description: 1=Silent 2=Basic 3=Strong 4=Full Speed
+    default: 3
+    selector:
+      number:
+        min: 1
+        max: 4
+  water_level:
+    name: Water level
+    description: 0=Off 1=Low 2=Medium 3=High
+    default: 2
+    selector:
+      number:
+        min: 0
+        max: 3
+  clean_mode:
+    name: Clean mode
+    description: 1=Sweep 2=Mop 3=Sweep+Mop 4=Sweep then Mop
+    default: 3
+    selector:
+      number:
+        min: 1
+        max: 4
+  clean_times:
+    name: Passes
+    description: Number of passes (1-3)
+    default: 1
+    selector:
+      number:
+        min: 1
+        max: 3
+
+mode: single
+sequence:
+  - action: xiaomi_miot.call_action
+    target:
+      entity_id: !input vacuum_entity
+    data:
+      siid: 2
+      aiid: 13
+      params:
+        - >-
+          {"room_attrs":[{"id":{{ room_id | int }},"fan_level":{{ fan_level |
+          default(3) | int }},"water_level":{{ water_level | default(2) | int
+          }},"clean_mode":{{ clean_mode | default(3) | int }},"clean_times":{{
+          clean_times | default(1) | int }},"mop_mode":0,"on":true}]}

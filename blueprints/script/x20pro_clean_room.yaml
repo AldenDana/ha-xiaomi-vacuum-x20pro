@@ -1,0 +1,78 @@
+blueprint:
+  name: X20 Pro — Clean room (with acceptance check and retry)
+  description: >-
+    Room clean for the Xiaomi Robot Vacuum X20 Pro (xiaomi.vacuum.d102gl) via
+    the xiaomi_miot (Xiaomi Miot Auto) integration. Fires
+    start-vacuum-room-sweep (siid 2, aiid 16), then verifies the robot really
+    accepted the command by checking vacuum.current_cleaning_config — a cloud
+    ack alone does not mean the robot started — and re-fires if needed.
+    Standalone YAML alternative to the xiaomi_x20pro custom integration.
+  domain: script
+  source_url: https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/blob/main/blueprints/script/x20pro_clean_room.yaml
+  input:
+    vacuum_entity:
+      name: Vacuum entity
+      selector:
+        entity:
+          domain: vacuum
+    max_retries:
+      name: Max retries
+      description: How many times to re-fire the start command if not accepted.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 30
+    retry_delay:
+      name: Retry delay (seconds)
+      description: Wait this long for acceptance before re-firing.
+      default: 25
+      selector:
+        number:
+          min: 5
+          max: 120
+
+fields:
+  room_id:
+    name: Room ID
+    description: >-
+      Map room ID (see the vacuum.room_information entity attribute — IDs
+      change when the map is remade and differ from the app's room numbers).
+    required: true
+    selector:
+      number:
+        min: 1
+        max: 99
+
+mode: restart
+sequence:
+  - variables:
+      vacuum: !input vacuum_entity
+      retries: !input max_retries
+      delay_s: !input retry_delay
+  - repeat:
+      count: "{{ retries + 1 }}"
+      sequence:
+        - action: xiaomi_miot.call_action
+          target:
+            entity_id: "{{ vacuum }}"
+          data:
+            siid: 2
+            aiid: 16
+            params:
+              - "{{ room_id | int | string }}"
+        - wait_template: >-
+            {{ (room_id | int) in
+               ((state_attr(vacuum, 'vacuum.current_cleaning_config') or '{}')
+                | from_json).get('rooms', []) }}
+          timeout:
+            seconds: "{{ delay_s }}"
+          continue_on_timeout: true
+        - if:
+            - condition: template
+              value_template: >-
+                {{ (room_id | int) in
+                   ((state_attr(vacuum, 'vacuum.current_cleaning_config') or '{}')
+                    | from_json).get('rooms', []) }}
+          then:
+            - stop: Room clean accepted by the robot.
