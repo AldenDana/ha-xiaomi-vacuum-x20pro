@@ -40,12 +40,14 @@ MIOT_SERVICE = "call_action"
 SIID_VACUUM = 2
 AIID_SET_ROOM_CONFIG = 13
 AIID_START_ROOM_SWEEP = 16
+AIID_START_USER_DEFINE_SWEEP = 42
 
 # xiaomi_miot exposes miot properties as dotted attribute names.
 ATTR_CLEANING_CONFIG = "vacuum.current_cleaning_config"
 
 SERVICE_CLEAN_ROOMS = "clean_rooms"
 SERVICE_SET_ROOM_CONFIG = "set_room_config"
+SERVICE_START_PRESET = "start_preset"
 
 CONFIG_FIELDS = ("fan_level", "water_level", "clean_mode", "clean_times")
 
@@ -57,6 +59,17 @@ CLEAN_ROOMS_SCHEMA = vol.Schema(
         vol.Optional("water_level"): vol.All(vol.Coerce(int), vol.In([0, 1, 2, 3])),
         vol.Optional("clean_mode"): vol.All(vol.Coerce(int), vol.In([1, 2, 3, 4])),
         vol.Optional("clean_times"): vol.All(vol.Coerce(int), vol.In([1, 2, 3])),
+        vol.Optional("retries", default=5): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
+        vol.Optional("retry_delay", default=25): vol.All(
+            vol.Coerce(int), vol.Range(min=5, max=120)
+        ),
+    }
+)
+
+START_PRESET_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("preset"): vol.All(vol.Coerce(int), vol.Range(min=0, max=65535)),
         vol.Optional("retries", default=5): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
         vol.Optional("retry_delay", default=25): vol.All(
             vol.Coerce(int), vol.Range(min=5, max=120)
@@ -179,10 +192,64 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "Assistant restart to recover)."
         )
 
+    async def start_preset(call: ServiceCall) -> None:
+        """Start an app-saved custom cleanup (user-define sweep).
+
+        The parameter is the small `v` value from the vacuum's
+        `user_define_sweep_cfg` property (a uint16), NOT the long `id` label —
+        the long id is accepted by the cloud (code 0) but the robot ignores it.
+        Acceptance signature: `current_cleaning_config` gains a `user_define`
+        key (or the vacuum starts cleaning).
+        """
+        entity_id = call.data["entity_id"]
+        preset: int = call.data["preset"]
+        retries: int = call.data["retries"]
+        retry_delay: int = call.data["retry_delay"]
+
+        def _accepted() -> bool:
+            state = hass.states.get(entity_id)
+            if state is None:
+                return False
+            if state.state == "cleaning":
+                return True
+            raw = state.attributes.get(ATTR_CLEANING_CONFIG) or ""
+            return "user_define" in raw
+
+        for attempt in range(retries + 1):
+            _LOGGER.debug(
+                "start_preset: attempt %s/%s for preset %s",
+                attempt + 1,
+                retries + 1,
+                preset,
+            )
+            await _call_miot_action(
+                hass, entity_id, AIID_START_USER_DEFINE_SWEEP, [preset]
+            )
+            deadline = retry_delay
+            while deadline > 0:
+                await asyncio.sleep(5)
+                deadline -= 5
+                if _accepted():
+                    _LOGGER.info(
+                        "start_preset: preset %s accepted on attempt %s",
+                        preset,
+                        attempt + 1,
+                    )
+                    return
+
+        raise HomeAssistantError(
+            f"Vacuum did not accept preset {preset} after {retries + 1} attempts. "
+            "Check the preset exists (read the user_define_sweep_cfg property) and "
+            "that you passed its small 'v' value, not the long label id."
+        )
+
     hass.services.async_register(
         DOMAIN, SERVICE_SET_ROOM_CONFIG, set_room_config, schema=SET_ROOM_CONFIG_SCHEMA
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CLEAN_ROOMS, clean_rooms, schema=CLEAN_ROOMS_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_PRESET, start_preset, schema=START_PRESET_SCHEMA
     )
     return True

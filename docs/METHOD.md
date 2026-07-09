@@ -95,8 +95,28 @@ The robot deep-sleeps within ~1-2 min of docking (`vacuum.sleep_status: true`; s
 - `battery→0, mop→False` cycling at the dock every few minutes is **normal** display-state drop; commands still work while the integration is `loaded`.
 - True session expiry: entity stuck at `unknown` — only a full HA restart recovers (`xiaomi_miot`'s config entry has `supports_unload: false`, so reloading the integration is a no-op).
 
-## Unexplored (PRs welcome)
+## User-define presets (aiid 42) — SOLVED, live-verified
 
-- `aiid 38/39/40/42` user-define sweep presets: `user_define_sweep_cfg` reads as `{"user_labels":[]}` until presets are created in the app. Plan: create one in the app, read the cfg back to learn the JSON shape, trigger with `aiid 42` + the uint16 `user_define_sweep_id`. (A report on the X20 Max of aiid 42 doing nothing used an implausibly large ID — likely not the uint16 preset id.)
-- Zone cleaning (`aiid 12/37`, `zone-ids`).
+App-saved custom cleanups replay perfectly and are the practical route to zone cleaning.
+
+1. Save a custom cleanup in the Xiaomi Home app (zone + settings).
+2. Read it back: `xiaomi_miot.get_properties` with `siid:2 piid:42` →
+   ```json
+   {"user_labels":[{"id":1593689101,"name":"Dining table","v":1,"mop":[3],"room_ids":[],"user_cfg":[]}]}
+   ```
+3. Start it: `call_action siid:2 aiid:42 params:[1]` — **the param is the small `v` value (uint16), NOT the long `id`**. Sending the long id (or its string form) returns cloud `code:0` but the robot does nothing — this explains the X20 Max report of aiid 42 "not working" (they sent a long id).
+4. Acceptance signature: `current_cleaning_config` becomes
+   ```json
+   {"user_define":{"id":1593689101,"v":1,"name":"...","user_data":[["mode","mop","fan","water","clean_count","more","ai","clean_path","mode_data"],[2,3,2,2,1,0,0,2,[[-960,-3908,-960,-6227,431,-6227,431,-3908]]]]}}
+   ```
+   Note `mode_data` holds the zone rectangle as 4 corner points in map mm — the robot's own storage format for zones.
+
+<a name="zone-cleaning"></a>
+## Zone cleaning via raw coordinates (aiid 12/37) — UNSOLVED
+
+A captured app-triggered zone clean reports `current_cleaning_config: {"zones":[[x1,y1,...,x4,y4]],"clean_mode":2}` (4 corners, map mm). Replaying via `aiid:37 start-zone-sweep` was attempted with every plausible param encoding — exact captured nested array, 2-corner form, repeat-count suffix, flat array, bare CSV, Y-negated, and `aiid:12 set-zone` first; writing the `zone-ids` property directly returns `-704030023` (not writable). All action calls get cloud `code:0`; the flat/CSV forms make the robot navigate and then announce "could not reach the target location" — so the input parses, but the expected coordinate encoding/frame remains unknown. If you crack it, please open a PR. Until then: use presets (above).
+
+## Still unexplored
+
+- `aiid 38/39/40` add/modify/delete user presets programmatically (creating presets from HA would enable fully dynamic zone cleaning; the `user_cfg`/`mode_data` shape above is probably the payload).
 - Whether commands are queued during `GoWash` (status 7) like they are during `StationWorking` (status 14).

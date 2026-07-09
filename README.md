@@ -8,6 +8,7 @@ No dedicated integration supports this model: it is Xiaomi in-house firmware (no
 
 - `xiaomi_x20pro.clean_rooms` — clean one or more rooms, optionally with per-room settings, with **acceptance verification and automatic retry** (the Xiaomi cloud often acks commands the robot never executes — see [docs/METHOD.md](docs/METHOD.md#cloud-ack--executed)).
 - `xiaomi_x20pro.set_room_config` — store per-room settings without starting a clean (works even while the robot is in deep sleep; never moves it).
+- `xiaomi_x20pro.start_preset` — start an **app-saved custom cleanup** (zones/rooms with their own settings). This is the reliable way to get zone cleaning: raw zone coordinates via `start-zone-sweep` are rejected in ways nobody has cracked yet ([details](docs/METHOD.md#zone-cleaning)), but presets saved in the Xiaomi Home app replay perfectly.
 - Standalone [script blueprints](blueprints/script/) if you prefer pure YAML over a custom component.
 
 ## Requirements
@@ -72,7 +73,20 @@ data:
   entity_id: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
   rooms: [8]
   fan_level: 1
+
+# Start an app-saved custom cleanup (e.g. a zone around the dining table):
+action: xiaomi_x20pro.start_preset
+data:
+  entity_id: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
+  preset: 1
 ```
+
+### Zone cleaning via presets
+
+1. In the Xiaomi Home app, create and **save a custom cleanup** covering your zone (with the settings you want).
+2. Read the vacuum's stored presets with `xiaomi_miot.get_properties` (`siid: 2, piid: 42`). You get something like:
+   `{"user_labels":[{"id":1593689101,"name":"Dining table","v":1,...}]}`
+3. Use the **small `v` value** as `preset` — **not** the long `id`; the long id gets a cloud ack but the robot silently ignores it.
 
 `clean_rooms` polls `vacuum.current_cleaning_config` after each start command and re-fires (default: 5 retries, 25 s apart) until the robot reports the requested rooms — this rides out the post-clean station mop-wash and the dock's battery-cycling window that silently swallow commands.
 

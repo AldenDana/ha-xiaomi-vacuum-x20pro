@@ -118,3 +118,44 @@ set_room_config:
         number:
           min: 1
           max: 3
+
+start_preset:
+  name: Start saved preset
+  description: >-
+    Start an app-saved custom cleanup (user-define sweep, aiid 42). The preset
+    number is the small "v" value from the vacuum's user_define_sweep_cfg
+    property — NOT the long "id" label, which the robot silently ignores.
+    Verifies acceptance and retries like clean_rooms.
+  fields:
+    entity_id:
+      name: Vacuum entity
+      description: The xiaomi_miot vacuum entity.
+      required: true
+      example: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
+      selector:
+        entity:
+          domain: vacuum
+    preset:
+      name: Preset number
+      description: The "v" value of the saved cleanup (see README for how to read it).
+      required: true
+      example: "1"
+      selector:
+        number:
+          min: 0
+          max: 65535
+    retries:
+      name: Retries
+      description: How many times to re-fire if the robot does not accept it (default 5).
+      selector:
+        number:
+          min: 0
+          max: 30
+    retry_delay:
+      name: Retry delay
+      description: Seconds to wait for acceptance before re-firing (default 25).
+      selector:
+        number:
+          min: 5
+          max: 120
+          unit_of_measurement: seconds
