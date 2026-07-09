@@ -1,12 +1,12 @@
 {
   "domain": "xiaomi_x20pro",
   "name": "Xiaomi Vacuum X20 Pro Room Clean",
+  "after_dependencies": ["xiaomi_miot"],
   "codeowners": ["@AldenDana"],
   "dependencies": [],
-  "after_dependencies": ["xiaomi_miot"],
   "documentation": "https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro",
-  "issue_tracker": "https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/issues",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/issues",
   "requirements": [],
   "version": "1.0.0"
 }
