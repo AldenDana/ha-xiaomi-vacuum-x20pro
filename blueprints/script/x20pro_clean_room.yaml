@@ -59,8 +59,11 @@ sequence:
           data:
             siid: 2
             aiid: 16
-            params:
-              - "{{ room_id | int | string }}"
+            # Whole-value template rendering to a native list with a STRING
+            # element — HA's native template eval turns "{{ x | string }}" item
+            # templates back into integers, and the robot silently ignores
+            # integer room ids.
+            params: "{{ [room_id | int | string] }}"
         - wait_template: >-
             {{ (room_id | int) in
                ((state_attr(vacuum, 'vacuum.current_cleaning_config') or '{}')
