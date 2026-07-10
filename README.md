@@ -9,6 +9,7 @@ No dedicated integration supports this model: it is Xiaomi in-house firmware (no
 - `xiaomi_x20pro.clean_rooms` — clean one or more rooms, optionally with per-room settings, with **acceptance verification and automatic retry** (the Xiaomi cloud often acks commands the robot never executes — see [docs/METHOD.md](docs/METHOD.md#cloud-ack--executed)).
 - `xiaomi_x20pro.set_room_config` — store per-room settings without starting a clean (works even while the robot is in deep sleep; never moves it).
 - `xiaomi_x20pro.start_preset` — start an **app-saved custom cleanup** (zones/rooms with their own settings). This is the reliable way to get zone cleaning: raw zone coordinates via `start-zone-sweep` are rejected in ways nobody has cracked yet ([details](docs/METHOD.md#zone-cleaning)), but presets saved in the Xiaomi Home app replay perfectly.
+- Station controls: `start_mop_wash` / `stop_mop_wash`, `start_dry` / `stop_dry`, `start_dust_collection` — direct actions for the wash-dry station.
 - Standalone [script blueprints](blueprints/script/) if you prefer pure YAML over a custom component.
 
 ## Requirements

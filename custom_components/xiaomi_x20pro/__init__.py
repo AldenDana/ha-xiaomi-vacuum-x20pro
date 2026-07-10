@@ -42,6 +42,15 @@ AIID_SET_ROOM_CONFIG = 13
 AIID_START_ROOM_SWEEP = 16
 AIID_START_USER_DEFINE_SWEEP = 42
 
+# Station actions (no input params). Live-verified on d102gl 2026-07-10.
+STATION_SERVICES = {
+    "start_mop_wash": 19,
+    "stop_mop_wash": 31,
+    "start_dry": 20,
+    "stop_dry": 32,
+    "start_dust_collection": 18,
+}
+
 # xiaomi_miot exposes miot properties as dotted attribute names.
 ATTR_CLEANING_CONFIG = "vacuum.current_cleaning_config"
 
@@ -65,6 +74,8 @@ CLEAN_ROOMS_SCHEMA = vol.Schema(
         ),
     }
 )
+
+ENTITY_ONLY_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
 START_PRESET_SCHEMA = vol.Schema(
     {
@@ -252,4 +263,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN, SERVICE_START_PRESET, start_preset, schema=START_PRESET_SCHEMA
     )
+
+    def _make_station_handler(aiid: int):
+        async def handler(call: ServiceCall) -> None:
+            await _call_miot_action(hass, call.data["entity_id"], aiid, [])
+
+        return handler
+
+    for service_name, aiid in STATION_SERVICES.items():
+        hass.services.async_register(
+            DOMAIN, service_name, _make_station_handler(aiid), schema=ENTITY_ONLY_SCHEMA
+        )
     return True

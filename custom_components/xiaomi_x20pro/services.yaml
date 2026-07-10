@@ -159,3 +159,36 @@ start_preset:
           min: 5
           max: 120
           unit_of_measurement: seconds
+
+start_mop_wash:
+  name: Start mop wash
+  description: Wash the mop pads at the station (aiid 19). Robot must be docked.
+  fields: &station_fields
+    entity_id:
+      name: Vacuum entity
+      description: The xiaomi_miot vacuum entity.
+      required: true
+      example: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
+      selector:
+        entity:
+          domain: vacuum
+
+stop_mop_wash:
+  name: Stop mop wash
+  description: Stop washing the mop pads (aiid 31).
+  fields: *station_fields
+
+start_dry:
+  name: Start mop drying
+  description: Start drying the mop pads at the station (aiid 20).
+  fields: *station_fields
+
+stop_dry:
+  name: Stop mop drying
+  description: Stop drying the mop pads (aiid 32).
+  fields: *station_fields
+
+start_dust_collection:
+  name: Start dust collection
+  description: Empty the dustbin into the station bag (aiid 18).
+  fields: *station_fields
