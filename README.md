@@ -1,8 +1,25 @@
 # Xiaomi Robot Vacuum X20 Pro — Room Cleaning for Home Assistant
 
+[![Validate](https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/actions/workflows/validate.yml/badge.svg)](https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/actions/workflows/validate.yml)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Working room-by-room cleaning — **including per-room custom settings** (suction, mop water, mode, passes) — for the **Xiaomi Robot Vacuum X20 Pro** (`xiaomi.vacuum.d102gl`) in Home Assistant.
 
 No dedicated integration supports this model: it is Xiaomi in-house firmware (not Dreame-based, so [dreame-vacuum](https://github.com/Tasshack/dreame-vacuum/issues/862) can't help), the official [ha_xiaomi_home](https://github.com/XiaoMi/ha_xiaomi_home/discussions/109) doesn't expose room IDs, and the [map extractor](https://github.com/PiotrMachowski/Home-Assistant-custom-components-Xiaomi-Cloud-Map-Extractor/issues/558) can't parse its maps. This project fills the gap with a thin, reliable layer on top of [al-one/hass-xiaomi-miot](https://github.com/al-one/hass-xiaomi-miot) (Xiaomi Miot Auto), based on live-tested MIoT calls. The full protocol findings are in [docs/METHOD.md](docs/METHOD.md).
+
+
+## Technical Highlights
+
+This project demonstrates practical reverse-engineering and Home Assistant automation work:
+
+- Custom Home Assistant services layered on top of Xiaomi Miot Auto for a model with incomplete public integration support
+- Live-verified MIoT action mapping for room cleaning, per-room settings, app-saved presets, and station actions
+- Command acceptance verification with retry logic, because Xiaomi cloud acknowledgements do not always mean the robot executed the command
+- Defensive parameter construction to avoid Home Assistant/YAML coercion bugs that can send invalid room-cleaning commands
+- HACS-compatible packaging, script blueprints, and validation workflow for distribution
+
+---
 
 ## What you get
 
@@ -90,6 +107,16 @@ data:
 3. Use the **small `v` value** as `preset` — **not** the long `id`; the long id gets a cloud ack but the robot silently ignores it.
 
 `clean_rooms` polls `vacuum.current_cleaning_config` after each start command and re-fires (default: 5 retries, 25 s apart) until the robot reports the requested rooms — this rides out the post-clean station mop-wash and the dock's battery-cycling window that silently swallow commands.
+
+
+## Security Notes
+
+- This integration does not store Xiaomi credentials; authentication and device access remain handled by Xiaomi Miot Auto.
+- Service examples use placeholder entity IDs and room IDs; users should map their own rooms locally.
+- Raw map samples under `docs/map-samples/` are included only as protocol-research artifacts and are documented as encrypted/opaque data.
+- The implementation avoids logging sensitive service payloads beyond normal Home Assistant service-call context.
+
+---
 
 ## Known gotchas (see [docs/METHOD.md](docs/METHOD.md) for the full list)
 
