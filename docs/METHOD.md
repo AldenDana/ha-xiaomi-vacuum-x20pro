@@ -111,6 +111,22 @@ App-saved custom cleanups replay perfectly and are the practical route to zone c
    ```
    Note `mode_data` holds the zone rectangle as 4 corner points in map mm — the robot's own storage format for zones.
 
+## THE BIG ONE — firmware silently ignores untagged action payloads (solved 2026-07-18)
+
+The d102gl ACKs (`code: 0`) **every** action on both cloud and local channels, but only **executes** actions whose `in` payload is properly piid-tagged. Bare-value lists — what python-miio's shorthand and most integrations send — are silently discarded. Working local example (live-verified):
+
+```python
+from miio import Device
+d = Device(ip, token)
+d.send("action", {"did": "call-2-42", "siid": 2, "aiid": 42,
+                  "in": [{"piid": 43, "value": 1593689101}]})   # preset id as INT
+```
+
+- This explains days of "flaky" behavior: the cloud path sometimes translated bare values acceptably (room ids as strings for aiid 16), sometimes not (aiid 42), and local control appeared completely dead.
+- The preset id for aiid 42 is the full `id` from `user_define_sweep_cfg` (NOT limited to uint16 despite the spec, NOT the `v` field).
+- Local `get_properties` works in every power state and is lag-free — use it for verification instead of the cloud-mirrored HA attributes, which can lag minutes and retain stale task descriptors.
+- Deep-sleep note: the always-on subsystem answers local handshakes/reads always; whether a piid-tagged local action also boots the main processor from hours-long deep sleep is still being confirmed. The station (mop wash/dry) runs on the dock's own controller and does not wake the robot.
+
 <a name="zone-cleaning"></a>
 ## Zone cleaning via raw coordinates (aiid 12/37) — UNSOLVED
 

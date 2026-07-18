@@ -57,6 +57,7 @@ ATTR_CLEANING_CONFIG = "vacuum.current_cleaning_config"
 SERVICE_CLEAN_ROOMS = "clean_rooms"
 SERVICE_SET_ROOM_CONFIG = "set_room_config"
 SERVICE_START_PRESET = "start_preset"
+SERVICE_START_PRESET_LOCAL = "start_preset_local"
 
 CONFIG_FIELDS = ("fan_level", "water_level", "clean_mode", "clean_times")
 
@@ -76,6 +77,15 @@ CLEAN_ROOMS_SCHEMA = vol.Schema(
 )
 
 ENTITY_ONLY_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
+
+START_PRESET_LOCAL_SCHEMA = vol.Schema(
+    {
+        vol.Required("host"): cv.string,
+        vol.Required("token"): cv.string,
+        vol.Required("preset_id"): vol.Coerce(int),
+        vol.Optional("retries", default=3): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+    }
+)
 
 START_PRESET_SCHEMA = vol.Schema(
     {
@@ -274,4 +284,59 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.services.async_register(
             DOMAIN, service_name, _make_station_handler(aiid), schema=ENTITY_ONLY_SCHEMA
         )
+
+    async def start_preset_local(call: ServiceCall) -> None:
+        """Start an app-saved preset over the LOCAL miio channel.
+
+        Key protocol finding (live-verified 2026-07-18 on d102gl): the robot
+        silently ACKs-and-ignores actions whose `in` payload is a bare value
+        list; it only executes properly piid-tagged inputs:
+        `in: [{"piid": 43, "value": <preset id as int>}]`. This is why local
+        control appeared "crippled" and why cloud preset starts were flaky.
+        Verification is done by watching the robot's status property switch to
+        an active state (the cleaning-config property can retain a stale
+        descriptor of a previous run, so it is not used as the only signal).
+        """
+        import time as _time
+
+        from miio import Device as _MiioDevice
+
+        host = call.data["host"]
+        token = call.data["token"]
+        preset_id = call.data["preset_id"]
+        retries = call.data["retries"]
+
+        def _run() -> bool:
+            dev = _MiioDevice(host, token)
+            for _attempt in range(retries + 1):
+                dev.send(
+                    "action",
+                    {
+                        "did": "call-2-42",
+                        "siid": 2,
+                        "aiid": 42,
+                        "in": [{"piid": 43, "value": preset_id}],
+                    },
+                )
+                for _poll in range(4):
+                    _time.sleep(3)
+                    props = dev.send(
+                        "get_properties", [{"did": "status", "siid": 2, "piid": 2}]
+                    )
+                    status = props[0].get("value")
+                    if status in (4, 5, 6, 7):
+                        return True
+            return False
+
+        ok = await hass.async_add_executor_job(_run)
+        if not ok:
+            raise HomeAssistantError(
+                f"Robot did not start preset {preset_id} after {retries + 1} local "
+                "attempts (status never became active)."
+            )
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_PRESET_LOCAL, start_preset_local,
+        schema=START_PRESET_LOCAL_SCHEMA,
+    )
     return True

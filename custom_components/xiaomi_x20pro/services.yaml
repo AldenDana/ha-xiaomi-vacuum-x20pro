@@ -192,3 +192,41 @@ start_dust_collection:
   name: Start dust collection
   description: Empty the dustbin into the station bag (aiid 18).
   fields: *station_fields
+
+start_preset_local:
+  name: Start saved preset (local)
+  description: >-
+    Start an app-saved custom cleanup over the LOCAL network (miio protocol,
+    no cloud). Requires the device IP and token. Uses the piid-tagged action
+    format the firmware actually executes - bare-value payloads are silently
+    ignored by this firmware. Verifies the robot actually started.
+  fields:
+    host:
+      name: Device IP
+      required: true
+      example: 192.168.1.143
+      selector:
+        text:
+    token:
+      name: Device token
+      description: 32-hex miio token (from Xiaomi cloud device list).
+      required: true
+      selector:
+        text:
+    preset_id:
+      name: Preset id
+      description: The saved cleanup's full "id" from user_define_sweep_cfg (integer).
+      required: true
+      example: "1593689101"
+      selector:
+        number:
+          min: 1
+          max: 4294967295
+          mode: box
+    retries:
+      name: Retries
+      description: Re-attempts if the robot does not start (default 3).
+      selector:
+        number:
+          min: 0
+          max: 10

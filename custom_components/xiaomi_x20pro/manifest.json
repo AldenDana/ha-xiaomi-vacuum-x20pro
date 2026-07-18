@@ -7,6 +7,6 @@
   "documentation": "https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro/issues",
-  "requirements": [],
-  "version": "1.2.0"
+  "requirements": ["python-miio>=0.5.12"],
+  "version": "1.3.0"
 }
