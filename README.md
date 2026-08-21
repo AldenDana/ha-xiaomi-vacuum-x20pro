@@ -131,3 +131,11 @@ data:
 - The per-room `room_attrs` format was first confirmed on the sibling S20+ (`xiaomi.vacuum.b108gl`) in [this HA community thread](https://community.home-assistant.io/t/support-for-xiaomi-vacuum-s20-to-xiaomi-miio-integration/770596?page=2); action IDs translated for the d102gl from its [MIoT spec](https://home.miot-spec.com/spec/xiaomi.vacuum.d102gl) and live-verified.
 
 Tested on firmware `0.0.23`, Home Assistant 2026.6, xiaomi_miot cloud mode. PRs and reports for other `xiaomi.vacuum.*` models welcome — the S20/S20+/X20/X20+ family likely works with different aiids (S20+: config=aiid 10, start=aiid 13).
+---
+
+## Support
+
+This is a spare-time project, shared free under the MIT licence and maintained as time allows.
+If it saved you an afternoon, you're welcome to [sponsor on GitHub](https://github.com/sponsors/AldenDana)
+or [buy me a coffee](https://ko-fi.com/aldendana) — completely optional, and it never gates features,
+fixes or support. A good bug report is worth more than a donation.
