@@ -35,6 +35,12 @@ from homeassistant.helpers.typing import ConfigType
 DOMAIN = "xiaomi_x20pro"
 _LOGGER = logging.getLogger(__name__)
 
+# Setup is triggered by a bare `xiaomi_x20pro:` key in configuration.yaml; the
+# integration itself takes no YAML options, everything is passed per service
+# call. Declaring this keeps hassfest's CONFIG_SCHEMA check happy and gives
+# users a real error if they put options under the domain.
+CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
+
 MIOT_DOMAIN = "xiaomi_miot"
 MIOT_SERVICE = "call_action"
 
