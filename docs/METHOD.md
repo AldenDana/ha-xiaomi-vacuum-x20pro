@@ -104,7 +104,9 @@ App-saved custom cleanups replay perfectly and are the practical route to zone c
    ```json
    {"user_labels":[{"id":1593689101,"name":"Dining table","v":1,"mop":[3],"room_ids":[],"user_cfg":[]}]}
    ```
-3. Start it: `call_action siid:2 aiid:42 params:[1]` — **the param is the small `v` value (uint16), NOT the long `id`**. Sending the long id (or its string form) returns cloud `code:0` but the robot does nothing — this explains the X20 Max report of aiid 42 "not working" (they sent a long id).
+3. Start it: `call_action siid:2 aiid:42 params:["1593689101"]` — **the param is the full `id`, passed as a STRING**. An integer gets a cloud `code:0` and is then silently ignored; this is the same quirk as room ids on aiid:16, and it explains the X20 Max report of aiid 42 "not working".
+
+   > **Corrected 2026-07-17 (this section previously said the opposite).** The original finding here was that the param is the small `v` value as a uint16. That was an artefact of testing with exactly one saved preset, whose `v` happened to be `1` — so `params:[1]` worked by coincidence. Re-tested with a second preset saved (`id 69566200`), the `v` value fails and only the full id-as-string works. Releases up to 1.3.0 shipped the wrong version of this; fixed in 1.4.0.
 4. Acceptance signature: `current_cleaning_config` becomes
    ```json
    {"user_define":{"id":1593689101,"v":1,"name":"...","user_data":[["mode","mop","fan","water","clean_count","more","ai","clean_path","mode_data"],[2,3,2,2,1,0,0,2,[[-960,-3908,-960,-6227,431,-6227,431,-3908]]]]}}
@@ -123,7 +125,7 @@ d.send("action", {"did": "call-2-42", "siid": 2, "aiid": 42,
 ```
 
 - This explains days of "flaky" behavior: the cloud path sometimes translated bare values acceptably (room ids as strings for aiid 16), sometimes not (aiid 42), and local control appeared completely dead.
-- The preset id for aiid 42 is the full `id` from `user_define_sweep_cfg` (NOT limited to uint16 despite the spec, NOT the `v` field).
+- The preset id for aiid 42 is the full `id` from `user_define_sweep_cfg` (NOT limited to uint16 despite the spec, NOT the `v` field) — consistent with the cloud channel above. Note the type differs by channel: the piid-tagged local payload takes it as an **int**, while the cloud `call_action` path needs it as a **string**.
 - Local `get_properties` works in every power state and is lag-free — use it for verification instead of the cloud-mirrored HA attributes, which can lag minutes and retain stale task descriptors.
 - Deep-sleep note: the always-on subsystem answers local handshakes/reads always; whether a piid-tagged local action also boots the main processor from hours-long deep sleep is still being confirmed. The station (mop wash/dry) runs on the dock's own controller and does not wake the robot.
 

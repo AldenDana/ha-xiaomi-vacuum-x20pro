@@ -97,7 +97,7 @@ data:
 action: xiaomi_x20pro.start_preset
 data:
   entity_id: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
-  preset: 1
+  preset: 1593689101
 ```
 
 ### Zone cleaning via presets
@@ -105,7 +105,9 @@ data:
 1. In the Xiaomi Home app, create and **save a custom cleanup** covering your zone (with the settings you want).
 2. Read the vacuum's stored presets with `xiaomi_miot.get_properties` (`siid: 2, piid: 42`). You get something like:
    `{"user_labels":[{"id":1593689101,"name":"Dining table","v":1,...}]}`
-3. Use the **small `v` value** as `preset` — **not** the long `id`; the long id gets a cloud ack but the robot silently ignores it.
+3. Use the **full `id`** as `preset` — **not** the small `v` value. An integer-typed id gets a cloud ack and is then silently ignored, so the integration passes it as a string for you.
+
+> **Changed in 1.4.0:** releases up to 1.3.0 documented the `v` value here and capped `preset` at 65535. That was wrong — it only appeared to work because the test vacuum had a single preset whose `v` was `1`. If you have an automation passing a `v` value, switch it to the full `id`.
 
 `clean_rooms` polls `vacuum.current_cleaning_config` after each start command and re-fires (default: 5 retries, 25 s apart) until the robot reports the requested rooms — this rides out the post-clean station mop-wash and the dock's battery-cycling window that silently swallow commands.
 

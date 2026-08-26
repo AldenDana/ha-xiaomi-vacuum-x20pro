@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 import voluptuous as vol
 
@@ -90,7 +91,9 @@ START_PRESET_LOCAL_SCHEMA = vol.Schema(
 START_PRESET_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_id,
-        vol.Required("preset"): vol.All(vol.Coerce(int), vol.Range(min=0, max=65535)),
+        vol.Required("preset"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=4294967295)
+        ),
         vol.Optional("retries", default=5): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
         vol.Optional("retry_delay", default=25): vol.All(
             vol.Coerce(int), vol.Range(min=5, max=120)
@@ -216,9 +219,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def start_preset(call: ServiceCall) -> None:
         """Start an app-saved custom cleanup (user-define sweep).
 
-        The parameter is the small `v` value from the vacuum's
-        `user_define_sweep_cfg` property (a uint16), NOT the long `id` label —
-        the long id is accepted by the cloud (code 0) but the robot ignores it.
+        The parameter is the full `id` from the vacuum's
+        `user_define_sweep_cfg` property, and it has to reach the robot as a
+        STRING — exactly the same quirk as room ids on aiid:16, where an
+        integer gets a cloud ack (code 0) and is then silently ignored.
+
+        Releases up to 1.3.0 documented the small `v` value instead. That was
+        an artefact of testing against a single saved preset, whose `v` happened
+        to be 1; with a second preset saved, only the full id works. See
+        docs/METHOD.md.
+
         Acceptance signature: `current_cleaning_config` gains a `user_define`
         key (or the vacuum starts cleaning).
         """
@@ -244,7 +254,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 preset,
             )
             await _call_miot_action(
-                hass, entity_id, AIID_START_USER_DEFINE_SWEEP, [preset]
+                hass, entity_id, AIID_START_USER_DEFINE_SWEEP, [str(preset)]
             )
             deadline = retry_delay
             while deadline > 0:
@@ -261,7 +271,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         raise HomeAssistantError(
             f"Vacuum did not accept preset {preset} after {retries + 1} attempts. "
             "Check the preset exists (read the user_define_sweep_cfg property) and "
-            "that you passed its small 'v' value, not the long label id."
+            "that you passed its full 'id', not the small 'v' value. The robot "
+            "also has to be awake: aiid:42 is dropped in deep sleep."
         )
 
     hass.services.async_register(
@@ -297,17 +308,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         an active state (the cleaning-config property can retain a stale
         descriptor of a previous run, so it is not used as the only signal).
         """
-        import time as _time
-
-        from miio import Device as _MiioDevice
-
         host = call.data["host"]
         token = call.data["token"]
         preset_id = call.data["preset_id"]
         retries = call.data["retries"]
 
         def _run() -> bool:
-            dev = _MiioDevice(host, token)
+            # Imported here rather than at module scope: this runs in the
+            # executor, so miio's heavy dependency chain (cryptography,
+            # construct, click) never gets imported on the event loop, and
+            # users who only use the cloud services never pay for it at all.
+            from miio import Device
+
+            dev = Device(host, token)
             for _attempt in range(retries + 1):
                 dev.send(
                     "action",
@@ -319,7 +332,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     },
                 )
                 for _poll in range(4):
-                    _time.sleep(3)
+                    time.sleep(3)
                     props = dev.send(
                         "get_properties", [{"did": "status", "siid": 2, "piid": 2}]
                     )

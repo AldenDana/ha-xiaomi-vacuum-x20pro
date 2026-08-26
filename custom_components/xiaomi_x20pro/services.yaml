@@ -123,8 +123,8 @@ start_preset:
   name: Start saved preset
   description: >-
     Start an app-saved custom cleanup (user-define sweep, aiid 42). The preset
-    number is the small "v" value from the vacuum's user_define_sweep_cfg
-    property — NOT the long "id" label, which the robot silently ignores.
+    number is the full "id" from the vacuum's user_define_sweep_cfg property —
+    NOT the small "v" value, which releases up to 1.3.0 wrongly documented.
     Verifies acceptance and retries like clean_rooms.
   fields:
     entity_id:
@@ -136,14 +136,17 @@ start_preset:
         entity:
           domain: vacuum
     preset:
-      name: Preset number
-      description: The "v" value of the saved cleanup (see README for how to read it).
+      name: Preset id
+      description: >-
+        The saved cleanup's full "id" from user_define_sweep_cfg (see README for
+        how to read it). Not the small "v" value.
       required: true
-      example: "1"
+      example: "1593689101"
       selector:
         number:
-          min: 0
-          max: 65535
+          min: 1
+          max: 4294967295
+          mode: box
     retries:
       name: Retries
       description: How many times to re-fire if the robot does not accept it (default 5).
@@ -213,6 +216,7 @@ start_preset_local:
       required: true
       selector:
         text:
+          type: password
     preset_id:
       name: Preset id
       description: The saved cleanup's full "id" from user_define_sweep_cfg (integer).
