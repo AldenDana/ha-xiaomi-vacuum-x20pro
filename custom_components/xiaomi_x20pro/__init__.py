@@ -28,6 +28,7 @@ import time
 import voluptuous as vol
 
 import homeassistant.helpers.config_validation as cv
+from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
@@ -35,11 +36,33 @@ from homeassistant.helpers.typing import ConfigType
 DOMAIN = "xiaomi_x20pro"
 _LOGGER = logging.getLogger(__name__)
 
-# Setup is triggered by a bare `xiaomi_x20pro:` key in configuration.yaml; the
-# integration itself takes no YAML options, everything is passed per service
-# call. Declaring this keeps hassfest's CONFIG_SCHEMA check happy and gives
-# users a real error if they put options under the domain.
-CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
+# Setup is triggered by a `xiaomi_x20pro:` key in configuration.yaml. The only
+# options are the local-channel credentials used by `start_preset_local`, and
+# they live here rather than in the service call on purpose: Home Assistant
+# records service data verbatim in automation and script traces, so a token
+# passed per call is readable by anyone who can open a trace or a downloaded
+# diagnostics file. In YAML it can be a `!secret`, and it never reaches a trace.
+#
+#   xiaomi_x20pro:
+#     host: 192.168.1.143
+#     token: !secret x20pro_token
+#
+# A bare `xiaomi_x20pro:` (no options) stays valid — the cloud services need
+# nothing, and start_preset_local still accepts host/token per call.
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Any(
+            vol.Schema(
+                {
+                    vol.Optional(CONF_HOST): cv.string,
+                    vol.Optional(CONF_TOKEN): cv.string,
+                }
+            ),
+            None,
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
 MIOT_DOMAIN = "xiaomi_miot"
 MIOT_SERVICE = "call_action"
@@ -85,10 +108,13 @@ CLEAN_ROOMS_SCHEMA = vol.Schema(
 
 ENTITY_ONLY_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
+# host/token are optional here: the configuration.yaml values are the intended
+# source. They stay accepted per call for multi-robot setups and for backwards
+# compatibility with automations written before 1.5.0 (deprecated for `token`).
 START_PRESET_LOCAL_SCHEMA = vol.Schema(
     {
-        vol.Required("host"): cv.string,
-        vol.Required("token"): cv.string,
+        vol.Optional("host"): cv.string,
+        vol.Optional("token"): cv.string,
         vol.Required("preset_id"): vol.Coerce(int),
         vol.Optional("retries", default=3): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
     }
@@ -150,6 +176,24 @@ def _accepted_rooms(hass: HomeAssistant, entity_id: str) -> set[int]:
         return set()
 
 
+_token_warning_logged = False
+
+
+def _warn_token_in_service_call() -> None:
+    """Warn once per restart that an inline token leaks into traces."""
+    global _token_warning_logged
+    if _token_warning_logged:
+        return
+    _token_warning_logged = True
+    _LOGGER.warning(
+        "xiaomi_x20pro.start_preset_local was called with `token` in the service "
+        "data. Home Assistant stores service data verbatim in automation and "
+        "script traces, so the token is readable there. Move it to "
+        "configuration.yaml (`xiaomi_x20pro:` -> `token: !secret x20pro_token`) "
+        "and remove it from the service call; it is deprecated as a call field"
+    )
+
+
 async def _call_miot_action(
     hass: HomeAssistant, entity_id: str, aiid: int, params: list
 ) -> None:
@@ -163,6 +207,12 @@ async def _call_miot_action(
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the services."""
+
+    conf = config.get(DOMAIN) or {}
+    hass.data[DOMAIN] = {
+        CONF_HOST: conf.get(CONF_HOST),
+        CONF_TOKEN: conf.get(CONF_TOKEN),
+    }
 
     if not hass.services.has_service(MIOT_DOMAIN, MIOT_SERVICE):
         _LOGGER.warning(
@@ -313,11 +363,30 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         Verification is done by watching the robot's status property switch to
         an active state (the cleaning-config property can retain a stale
         descriptor of a previous run, so it is not used as the only signal).
+
+        `host` and `token` default to the configuration.yaml values so the
+        token stays out of automation and script traces; passing them per call
+        still works and wins, which is what a second robot needs.
         """
-        host = call.data["host"]
-        token = call.data["token"]
+        configured = hass.data.get(DOMAIN, {})
+        host = call.data.get("host") or configured.get(CONF_HOST)
+        token = call.data.get("token") or configured.get(CONF_TOKEN)
         preset_id = call.data["preset_id"]
         retries = call.data["retries"]
+
+        if "token" in call.data:
+            _warn_token_in_service_call()
+
+        if not host or not token:
+            missing = " and ".join(
+                name for name, value in (("host", host), ("token", token)) if not value
+            )
+            raise HomeAssistantError(
+                f"start_preset_local needs the device {missing}. Add it to "
+                "configuration.yaml under `xiaomi_x20pro:` (use `!secret` for the "
+                "token so it stays out of automation traces) and restart Home "
+                "Assistant, or pass it in the service call."
+            )
 
         def _run() -> bool:
             # Imported here rather than at module scope: this runs in the

@@ -200,20 +200,28 @@ start_preset_local:
   name: Start saved preset (local)
   description: >-
     Start an app-saved custom cleanup over the LOCAL network (miio protocol,
-    no cloud). Requires the device IP and token. Uses the piid-tagged action
-    format the firmware actually executes - bare-value payloads are silently
-    ignored by this firmware. Verifies the robot actually started.
+    no cloud). Takes the device IP and token from configuration.yaml. Uses the
+    piid-tagged action format the firmware actually executes - bare-value
+    payloads are silently ignored by this firmware. Verifies the robot
+    actually started.
   fields:
     host:
       name: Device IP
-      required: true
+      description: >-
+        Only needed to override the `host` set under `xiaomi_x20pro:` in
+        configuration.yaml (e.g. a second robot).
+      required: false
       example: 192.168.1.143
       selector:
         text:
     token:
       name: Device token
-      description: 32-hex miio token (from Xiaomi cloud device list).
-      required: true
+      description: >-
+        DEPRECATED here since 1.5.0 - set `token` under `xiaomi_x20pro:` in
+        configuration.yaml instead (with `!secret`). Home Assistant stores
+        service data verbatim in automation and script traces, so a token
+        passed here is readable by anyone who can open a trace.
+      required: false
       selector:
         text:
           type: password

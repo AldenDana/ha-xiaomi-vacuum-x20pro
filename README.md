@@ -40,7 +40,7 @@ This project demonstrates practical reverse-engineering and Home Assistant autom
 
 1. HACS → ⋮ → *Custom repositories* → add `https://github.com/AldenDana/ha-xiaomi-vacuum-x20pro` as type **Integration**.
 2. Install **Xiaomi Vacuum X20 Pro Room Clean**.
-3. Add this line to `configuration.yaml` and restart Home Assistant:
+3. Add this to `configuration.yaml` and restart Home Assistant:
 
 ```yaml
 xiaomi_x20pro:
@@ -53,6 +53,34 @@ Copy `custom_components/xiaomi_x20pro/` into your `config/custom_components/`, a
 ### Option C — blueprints only
 
 Import the [script blueprints](blueprints/script/) (Settings → Automations & Scenes → Blueprints → Import) and skip the integration entirely.
+
+## Configuration
+
+The cloud services need no options — a bare `xiaomi_x20pro:` is enough. `start_preset_local`
+talks to the robot directly, so it needs the device IP and its 32-hex miio token:
+
+```yaml
+# configuration.yaml
+xiaomi_x20pro:
+  host: 192.168.1.143
+  token: !secret x20pro_token
+```
+
+```yaml
+# secrets.yaml
+x20pro_token: 0123456789abcdef0123456789abcdef
+```
+
+| Option  | Required | Description |
+| ------- | -------- | ----------- |
+| `host`  | no | The vacuum's IP on your LAN. Give it a DHCP reservation — a changed IP breaks local calls. |
+| `token` | no | The 32-hex miio token, from the Xiaomi cloud device list. Use `!secret`. |
+
+> **Put the token here, not in the service call.** Home Assistant writes service data verbatim
+> into automation and script **traces**, so a token passed per call is readable by anyone who can
+> open a trace or a downloaded diagnostics file. Since 1.5.0 both fields are optional in
+> `start_preset_local` and default to these values; passing `token` in the call still works (it
+> wins over the configured one, for multi-robot setups) but logs a deprecation warning.
 
 ## Find your room IDs first
 
@@ -98,6 +126,12 @@ action: xiaomi_x20pro.start_preset
 data:
   entity_id: vacuum.xiaomi_d102gl_xxxx_robot_cleaner
   preset: 1593689101
+
+# Same thing over the local network — works from deep sleep, no cloud round-trip.
+# host/token come from configuration.yaml, so nothing secret lands in the trace:
+action: xiaomi_x20pro.start_preset_local
+data:
+  preset_id: 1593689101
 ```
 
 ### Zone cleaning via presets
@@ -114,7 +148,8 @@ data:
 
 ## Security Notes
 
-- This integration does not store Xiaomi credentials; authentication and device access remain handled by Xiaomi Miot Auto.
+- This integration does not store Xiaomi account credentials; authentication and cloud device access remain handled by Xiaomi Miot Auto.
+- The one secret it does handle, the local miio device token, is read from `configuration.yaml` (use `!secret`) so it never appears in automation or script traces. Passing it as a `start_preset_local` field is deprecated for exactly that reason.
 - Service examples use placeholder entity IDs and room IDs; users should map their own rooms locally.
 - Raw map samples under `docs/map-samples/` are included only as protocol-research artifacts and are documented as encrypted/opaque data.
 - The implementation avoids logging sensitive service payloads beyond normal Home Assistant service-call context.
